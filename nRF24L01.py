@@ -3,7 +3,7 @@ from quick2wire.spi import *
 from quick2wire.gpio import Pin
 from quick2wire.gpio import In,Out,pi_header_1
 import time
-import TCPServerThreaded 
+import TCP-Server 
 
 PAYLOAD_SIZE   = 3
 
@@ -297,7 +297,7 @@ if __name__ == "__main__":
         SET_CONFIG = 0x1E   #Transmitter
         SendObj.setupRadio()    #Setting up radio
         
-        TCPServerThreaded.Run_func()    #Calls the "Run_func()" in a TCP-server (that in termes calls the "Send(data)" function above with the data)
+        TCP-Server.Run_func()    #Calls the "Run_func()" in a TCP-server (that in termes calls the "Send(data)" function above with the data)
         while 1:
             package = input("Enter data to send (3 bytes): ")  #If not TCP-server is used, calls for input from user to bee sent
             print("")
