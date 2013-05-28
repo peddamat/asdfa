@@ -218,47 +218,47 @@ class NRF24L01P:
         bytes.append(SET_ACK)
         self.doOperation(writing(bytes))
 
-        #Setup SETUP ACK RETRIES
+        #Setup ACK RETRIES
         bytes = [WRITE_REG|SETUP_RETR]
         bytes.append(SET_ACK_RETR)
         self.doOperation(writing(bytes))
 
-        #Setup SETUP Datapipe
+        #Setup Datapipe
         bytes = [WRITE_REG|EN_RXADDR]
         bytes.append(SET_DATAPIPE)
         self.doOperation(writing(bytes))
 
-        #Setup SETUP Address width
+        #Setup Address width
         bytes = [WRITE_REG|SETUP_AW]
         bytes.append(SET_ADR_WIDTH)
         self.doOperation(writing(bytes))
 
-        #Setup SETUP Freq
+        #Setup Freq
         bytes = [WRITE_REG|RF_CH]
         bytes.append(SET_FREQ)
         self.doOperation(writing(bytes))
 
-        #Setup SETUP Data speed and power
+        #Setup Data speed and power
         bytes = [WRITE_REG|RF_SETUP]
         bytes.append(SET_SETUP)
         self.doOperation(writing(bytes))
 
-        #Setup SETUP Receive Address
+        #Setup Receive Address
         bytes = [WRITE_REG|RX_ADDR_P0]
         bytes.extend(SET_RX_ADDR_P0)    #"extend" adds a list to a list, "append" adds one obect to a list
         self.doOperation(writing(bytes))
 
-        #Setup SETUP Transmitter Address
+        #Setup Transmitter Address
         bytes = [WRITE_REG|TX_ADDR]
         bytes.extend(SET_TX_ADDR)
         self.doOperation(writing(bytes))
 
-        #Setup SETUP Payload size
+        #Setup Payload size
         bytes = [WRITE_REG|RX_PW_P0]
         bytes.append(SET_PAYLOAD_S)
         self.doOperation(writing(bytes))
                 
-        #Setup SETUP CONFIG registry
+        #Setup CONFIG registry
         bytes = [WRITE_REG|CONFIG]
         bytes.append(SET_CONFIG)
         self.doOperation(writing(bytes))
