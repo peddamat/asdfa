@@ -162,10 +162,10 @@ class NRF24L01P:
         #Print out the transmitting bytes with quotations ("chr(34)"), Payload cannot be read from the nRF! 
         print("Transmitting...[{}{}{},{}{}{},{}{}{}]".format(chr(34), chr(toSend[0]),chr(34),chr(34), chr(toSend[1]), chr(34), chr(34),chr(toSend[2]),chr(34)))
 
-        #This checks if the first byte to send is a "9", and if so, changes the address on the nRF.
+        #This checks if the payload is"900" or "901", 002, 003 or 004, and if so, changes the address on the nRF.
         a = "".join([chr(x) for x in toSend])
         #print(a)
-        if(a=="009" or a=="019"):
+        if(a=="900" or a=="901"):
             self.changeAddress(0x13)    #Calls function located further down
         elif(a=="002" or a=="003" or a=="004"):#
               self.changeAddress(0x14)
@@ -197,7 +197,7 @@ class NRF24L01P:
         self.ReadPrintReg(STATUS,"STATUS after",1)  #Read STATUS register that hopefully tells you a successful transmission has occured (0x2E)
         print("")
         
-        if(a=="009" or a=="019" or a=="002" or a=="003" or a=="004"):      #If you changed address above, change it back to normal
+        if(a=="900" or a=="901" or a=="002" or a=="003" or a=="004"):      #If you changed address above, change it back to normal
             self.changeAddress(0x12)    #Change back address!
 
 
