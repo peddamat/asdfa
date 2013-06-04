@@ -3,7 +3,7 @@ from quick2wire.spi import *
 from quick2wire.gpio import Pin
 from quick2wire.gpio import In,Out,pi_header_1
 import time
-import TCP-Server 
+import TCP_Server 
 
 PAYLOAD_SIZE   = 3
 
