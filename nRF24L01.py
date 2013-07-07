@@ -73,6 +73,16 @@ class NRF24L01P:
         self.radio_pin = pi_header_1.pin(22, direction=Out) #"CE" on nRF, output
 
 
+    def go(self):
+        epoll = select.epoll() 
+        epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
+        with self.int_pin
+            while True: 
+                events = epoll.poll() 
+                for fileno, event in events: 
+                    if fileno == self.int_pin.fileno(): 
+                        SendObj.receiveData()
+        
     def doOperation(self,operation):
         """Do one SPI operation"""
         time.sleep(SMALL_PAUSE)     #Make sure the nrf is ready
@@ -340,14 +350,8 @@ if __name__ == "__main__":
 
         print("\nReceiving data")
         i=0
+        SendObj.go()
         # while 1:
             # SendObj.receiveData()
             # time.sleep(SMALL_PAUSE)
-        epoll = select.epoll() 
-        epoll.register(radio_pin, select.EPOLLIN | select.EPOLLET) 
-        with radio_pin
-            while True: 
-                events = epoll.poll() 
-                for fileno, event in events: 
-                    if fileno == radio_pin.fileno(): 
-                        SendObj.receiveData()
+
