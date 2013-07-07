@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from quick2wire.spi import *
 from quick2wire.gpio import Pin
-from quick2wire.gpio import In,Out,pi_header_1
+from quick2wire.gpio import In,Out,pi_header_1,Falling
 import time
 import TCP_Server 
 import select
@@ -66,23 +66,36 @@ class NRF24L01P:
     def __init__(self):
         """__init__ function is allways run first, when the class is called!"""
         self.nrf24 = SPIDevice(0, 0) #Define SPI-unit (used in doOperation)
-
-        # Setup interrupt pin
-        self.int_pin = pins.pin(24, direction=In, interrupt=Falling)
-
         self.radio_pin = pi_header_1.pin(22, direction=Out) #"CE" on nRF, output
+
+    def startListening(self):
+        try:
+            self.radio_pin.open()   #Open the "CE" GPIO pin for access
+            self.radio_pin.value=1  #Set the "CE" pin high (3,3V or 5V) to start listening for data
+            time.sleep(LONG_PAUSE)  #Listen 0,5s for incomming data
+
+        except(KeyboardInterrupt, SystemExit):  #If ctrl+c breaks operation or system shutdown
+            try:
+                self.radio_pin.close()  #First close the CE-pin, so that it can be opened again without error!
+                print("\n\ngpio-pin closed!\n")
+            except:
+                pass
+            raise   #continue to break or shutdown!                    
 
 
     def go(self):
+        # Setup interrupt pin
+        self.int_pin = pi_header_1.pin(24, direction=In, interrupt=Falling)
+
         epoll = select.epoll() 
-        epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
-        with self.int_pin
+        with self.int_pin:
+            epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
             while True: 
                 events = epoll.poll() 
                 for fileno, event in events: 
                     if fileno == self.int_pin.fileno(): 
                         SendObj.receiveData()
-        
+    
     def doOperation(self,operation):
         """Do one SPI operation"""
         time.sleep(SMALL_PAUSE)     #Make sure the nrf is ready
@@ -334,19 +347,7 @@ if __name__ == "__main__":
         SendObj.setupRadio()
 
         # Start listening
-        try:
-            self.radio_pin.open()   #Open the "CE" GPIO pin for access
-            self.radio_pin.value=1  #Set the "CE" pin high (3,3V or 5V) to start listening for data
-            time.sleep(LONG_PAUSE)  #Listen 0,5s for incomming data
-
-        except(KeyboardInterrupt, SystemExit):  #If ctrl+c breaks operation or system shutdown
-            try:
-                self.radio_pin.close()  #First close the CE-pin, so that it can be opened again without error!
-                print("\n\ngpio-pin closed!\n")
-            except:
-                pass
-            raise   #continue to break or shutdown!                    
-
+        SendObj.startListening()
 
         print("\nReceiving data")
         i=0
