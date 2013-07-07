@@ -65,7 +65,7 @@ class NRF24L01P:
 
     def __init__(self):
         self.nrf24 = SPIDevice(0, 0) 
-
+        self.outfile = open("/home/pi/testit", 'a')
 
     def run(self):
         # Setup chip-enable pin
@@ -121,8 +121,11 @@ class NRF24L01P:
             if len(Res[x]) == 1:          # If byte started with "0" (ex. "0E") the "0" is gone from previous process => (len == 1)
                 Res[x]= "0" + Res[x]      # Read the "0" if thats the case
             print("[0x{}]".format(Res[x].upper()), end='') # Print next byte after previous without new line
+            print("[0x{}]".format(Res[x].upper()), end='', file=self.outfile) # Print next byte after previous without new line
 
         print("") 
+        print("<br />", file=self.outfile) 
+        self.outfile.flush()
         return Res[1].upper()   # Returns the first byte (not the zeroth which is always STATUS)
     
 
