@@ -5,23 +5,23 @@ from quick2wire.gpio import In,Out,pi_header_1
 import time
 import TCP_Server 
 
-PAYLOAD_SIZE   = 3
+PAYLOAD_SIZE   = 32
 
 SMALL_PAUSE = 0.05
 LONG_PAUSE=0.5
 
 #Define settings variables for nRF:
-SET_ACK        = 0x01  #Auto ack on (EN_AA)
+SET_ACK        = 0x3f  #Auto ack on (EN_AA)
 SET_ACK_RETR   = 0x2F  #15 retries, 750us paus in between in auto ack (SETUP_RETR)
-SET_DATAPIPE   = 0x01  #Datapipe 0 is used (EN_RXADDR)
+SET_DATAPIPE   = 0x03  #Datapipe 0 is used (EN_RXADDR)
 SET_ADR_WIDTH  = 0x03  #5 byte address (SETUP_AW)
-SET_FREQ       = 0x01  #2,401GHz (RF_CH)
+SET_FREQ       = 0x5a  #2,401GHz (RF_CH)
 SET_SETUP      = 0x07  #1Mbps, -0dB, (250kbps = 0x27) (RF_SETUP)
-ADDRESS        = 0x12
+ADDRESS        = 0xe7
 SET_RX_ADDR_P0 = [ADDRESS,ADDRESS,ADDRESS,ADDRESS,ADDRESS] #Receiver address( RX_ADDR_P0)
 SET_TX_ADDR    = [ADDRESS,ADDRESS,ADDRESS,ADDRESS,ADDRESS] #Transmitter address (TX_ADDR)
-SET_PAYLOAD_S  = 0x03  #3byte payload size (32byte = 0x20)(RX_PW_P0)
-SET_CONFIG     = 0x1E  #1=mask_MAX_RT (IRQ-vector), E=transmitter, F= Receiver (CONFIG)
+SET_PAYLOAD_S  = 0x20  #3byte payload size (32byte = 0x20)(RX_PW_P0)
+SET_CONFIG     = 0x0F  #1=mask_MAX_RT (IRQ-vector), E=transmitter, F= Receiver (CONFIG)
 
 #nRF registers:
 CONFIG      = 0x00
@@ -66,7 +66,7 @@ class NRF24L01P:
         """__init__ function is allways run first, when the class is called!"""
         self.nrf24 = SPIDevice(0, 0) #Define SPI-unit (used in doOperation)
 
-        self.radio_pin = pi_header_1.pin(12, direction=Out) #"CE" on nRF, output
+        self.radio_pin = pi_header_1.pin(22, direction=Out) #"CE" on nRF, output
         
 
     def doOperation(self,operation):
@@ -135,11 +135,13 @@ class NRF24L01P:
         
         if len(Res) == 1:       #if string started with "0" (ex. "0E") the "0" is gone from previous process => (len == 1)
             Res= "0" + Res      #Readd the "0" if thats the case
+
+        print("Moo: " + Res)
             
         if(Res != "0E"):  #If something is flagged in the STATUS-register            
             self.ReadPrintReg(STATUS,"STATUS",1)    #Print out the status-register
-            if Res == "4E": #If data is received correctly
-                self.ReadPrintReg(RD_RX_PLOAD,"Received",PAYLOAD_SIZE)    #Print out the received bytes
+            #if Res == "4E": #If data is received correctly
+            self.ReadPrintReg(RD_RX_PLOAD,"Received",PAYLOAD_SIZE)    #Print out the received bytes
         else:
             print(".", end='')  #Print out dots to show we are still listening!
             sys.stdout.flush()  #the end='' only puts it in the buffer!
