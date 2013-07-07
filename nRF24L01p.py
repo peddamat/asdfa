@@ -66,13 +66,34 @@ class NRF24L01P:
     def __init__(self):
         """__init__ function is allways run first, when the class is called!"""
         self.nrf24 = SPIDevice(0, 0) #Define SPI-unit (used in doOperation)
+
+    def go(self):
         self.radio_pin = pi_header_1.pin(22, direction=Out) #"CE" on nRF, output
 
-    def startListening(self):
+        # Setup interrupt pin
+        self.int_pin = pi_header_1.pin(18, direction=In, interrupt=Falling)
+
         try:
-            self.radio_pin.open()   #Open the "CE" GPIO pin for access
-            self.radio_pin.value=1  #Set the "CE" pin high (3,3V or 5V) to start listening for data
-            time.sleep(LONG_PAUSE)  #Listen 0,5s for incomming data
+            # self.radio_pin.open()   #Open the "CE" GPIO pin for access
+            # self.radio_pin.value=1  #Set the "CE" pin high (3,3V or 5V) to start listening for data
+            # time.sleep(LONG_PAUSE)  #Listen 0,5s for incomming data
+
+            epoll = select.epoll() 
+            with self.int_pin:
+                epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
+                while True: 
+                    self.radio_pin.open()   #Open the "CE" GPIO pin for access
+                    self.radio_pin.value=1  #Set the "CE" pin high (3,3V or 5V) to start listening for data
+                    time.sleep(LONG_PAUSE)  #Listen 0,5s for incomming data                
+                                    
+                    events = epoll.poll() 
+                    for fileno, event in events: 
+                        if fileno == self.int_pin.fileno(): 
+                            print("Stopped listening.")
+                            # Stop listening
+                            self.radio_pin.value=0  #Ground the "CE" pin again, to stop listening
+                            self.radio_pin.close()  #Close the CE-pin                        
+                            SendObj.receiveData()            
 
         except(KeyboardInterrupt, SystemExit):  #If ctrl+c breaks operation or system shutdown
             try:
@@ -80,22 +101,8 @@ class NRF24L01P:
                 print("\n\ngpio-pin closed!\n")
             except:
                 pass
-            raise   #continue to break or shutdown!                    
+            raise   #continue to break or shutdown!    
 
-
-    def go(self):
-        # Setup interrupt pin
-        self.int_pin = pi_header_1.pin(24, direction=In, interrupt=Falling)
-
-        epoll = select.epoll() 
-        with self.int_pin:
-            epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
-            while True: 
-                events = epoll.poll() 
-                for fileno, event in events: 
-                    if fileno == self.int_pin.fileno(): 
-                        SendObj.receiveData()
-    
     def doOperation(self,operation):
         """Do one SPI operation"""
         time.sleep(SMALL_PAUSE)     #Make sure the nrf is ready
@@ -134,10 +141,6 @@ class NRF24L01P:
 
     def receiveData(self):
         """Receive one or None messages from module"""
-
-        # Stop listening
-        self.radio_pin.value=0  #Ground the "CE" pin again, to stop listening
-        self.radio_pin.close()  #Close the CE-pin
 
         #Reset Status registry
         bytes = [WRITE_REG|STATUS]  #first byte to send tells nRF tat STATUS register is to be Written to
@@ -328,7 +331,7 @@ if __name__ == "__main__":
     if rxtx == "tx":    #nRF transmitter
         print('\nTransmitter')
         
-        SET_CONFIG = 0x1E   #Transmitter
+        SET_CONFIG = 0x0E   #Transmitter
         SendObj.setupRadio()    #Setting up radio
         
         TCP-Server.Run_func()    #Calls the "Run_func()" in a TCP-server (that in termes calls the "Send(data)" function above with the data)
@@ -343,11 +346,11 @@ if __name__ == "__main__":
     else:   #nRF receiver
         print('\nReceiver')
 
-        SET_CONFIG = 0x1F   #Receiver
+        SET_CONFIG = 0x0F   #Receiver
         SendObj.setupRadio()
 
         # Start listening
-        SendObj.startListening()
+        # SendObj.startListening()
 
         print("\nReceiving data")
         i=0
