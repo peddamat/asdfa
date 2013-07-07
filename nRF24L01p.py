@@ -49,12 +49,12 @@ RX_PW_P4    = 0x15
 RX_PW_P5    = 0x16
 FIFO_STATUS = 0x17
 
-READ_REG     = 0x00
-WRITE_REG    = 0x20
+R_REGISTER   = 0x00
+W_REGISTER   = 0x20
 RESET_STATUS = 0x70
 
-WR_TX_PLOAD = 0xA0
-RD_RX_PLOAD = 0x61
+W_TX_PAYLOAD = 0xA0
+R_RX_PAYLOAD = 0x61
 
 FLUSH_TX    = 0xE1
 FLUSH_RX    = 0xE2
@@ -69,7 +69,7 @@ class NRF24L01P:
 
     def run(self):
         # Setup chip-enable pin
-        self.radio_pin = pi_header_1.pin(22, direction=Out) 
+        self.ce_pin = pi_header_1.pin(22, direction=Out) 
 
         # Setup interrupt pin
         self.int_pin = pi_header_1.pin(18, direction=In, interrupt=Falling)
@@ -81,16 +81,16 @@ class NRF24L01P:
             epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
 
             while True: 
-                self.radio_pin.open()   # Open the "CE" GPIO pin for access
-                self.radio_pin.value=1  # Set the "CE" pin high (3,3V or 5V) to start listening for data
+                self.ce_pin.open()   # Open the "CE" GPIO pin for access
+                self.ce_pin.value=1  # Set the "CE" pin high (3,3V or 5V) to start listening for data
                 time.sleep(LONG_PAUSE)  # Give the radio time to settle
                                 
                 events = epoll.poll() 
                 for fileno, event in events: 
                     if fileno == self.int_pin.fileno(): 
-                        self.radio_pin.value=0  # Ground the "CE" pin again, to stop listening
-                        self.radio_pin.close()  # Close the CE-pin                        
-                        SendObj.read_data()            
+                        self.ce_pin.value=0  # Ground the "CE" pin again, to stop listening
+                        self.ce_pin.close()  # Close the CE-pin                        
+                        radio.read_data()            
 
 
     def _spi_write(self,operation):
@@ -104,22 +104,22 @@ class NRF24L01P:
     def print_reg(self, Register, name, numbers):
         """Function that grabs "numbers" of bytes from the registry "Register" in the nRF and writes them out in terminal as "name....[0xAA,0xBB,0xCC]" """
 
-        bytes = [READ_REG|Register]             # First byte in "bytes" will tell the nRF what register to read from 
+        bytes = [R_REGISTER|Register]           # First byte in "bytes" will tell the nRF what register to read from 
         for x in range(0, numbers):             # Add "numbers" amount of dummy-bytes to "bytes" to send to nRF
             bytes.append(NOP)                   # For each dummy byte sent to nRF later, a return byte will be collected 
-        ret = self._spi_write(duplex(bytes))   # Do the SPI operations (returns a byte-array with the bytes collected)
+        ret = self._spi_write(duplex(bytes))    # Do the SPI operations (returns a byte-array with the bytes collected)
 
         Res = [hex(z)[2:] for z in ret[0]]      # Convert byte-array to string list
 
-        while len(name)<15:         # Fill the name with "." so it always becomes 15 char long (e.g. "STATUS.........")
-            name = name + "."
+        # Pad name to 15 characters
+        while len(name)<15: name = name + "."
 
         # Print out the register and bytes like this: "STATUS.........[0x0E]"
-        print("{}".format(name), end='')  # First print the name, and stay on same line (end='')        
+        print("{}".format(name), end='')        # First print the name, and stay on same line (end='')        
 
-        for x in range(1, numbers+1):     # Then print out every collected byte
-            if len(Res[x]) == 1:          # If byte started with "0" (ex. "0E") the "0" is gone from previous process => (len == 1)
-                Res[x]= "0" + Res[x]      # Read the "0" if thats the case
+        for x in range(1, numbers+1):           # Then print out every collected byte
+            if len(Res[x]) == 1:                # If byte started with "0" (ex. "0E") the "0" is gone from previous process => (len == 1)
+                Res[x]= "0" + Res[x]            # Read the "0" if thats the case
             print("[0x{}]".format(Res[x].upper()), end='') # Print next byte after previous without new line
             print("[0x{}]".format(Res[x].upper()), end='', file=self.outfile) # Print next byte after previous without new line
 
@@ -133,9 +133,9 @@ class NRF24L01P:
         """Receive one or None messages from module"""
 
         # Reset Status registry
-        bytes = [WRITE_REG|STATUS]          # First byte to send tells nRF tat STATUS register is to be Written to
-        bytes.append(RESET_STATUS)          # Add the byte that will be written to thr nRF (in this case the Reset command)
-        self._spi_write(writing(bytes))    # Execute the SPI command to send "bytes" to the nRF
+        bytes = [W_REGISTER|STATUS]         # First byte to send tells nRF tat STATUS register is to be Written to
+        bytes.append(RESET_STATUS)          # Add the byte that will be written to the nRF (in this case the Reset command)
+        self._spi_write(writing(bytes))     # Execute the SPI command to send "bytes" to the nRF
 
         # Get the status register as byte-array
         ret = self._spi_write(duplex([STATUS]))    
@@ -147,13 +147,11 @@ class NRF24L01P:
         Res = Res[0].upper()    
         
         # If string started with "0" (ex. "0E") the "0" is gone from previous process => (len == 1)       
-        if len(Res) == 1:       
-            Res= "0" + Res      # Read the "0" if thats the case
+        if len(Res) == 1: Res= "0" + Res
 
-        if(Res != "0E"):  # If something is flagged in the STATUS-register            
-            self.print_reg(STATUS,"STATUS",1)    # Print out the status-register
-            # if Res == "4E": #If data is received correctly
-            self.print_reg(RD_RX_PLOAD,"Received",PAYLOAD_SIZE)    # Print out the received bytes
+        if(Res != "0E"):                                            # If something is flagged in the STATUS-register            
+            self.print_reg(STATUS,"STATUS",1)                       # Print out the status-register
+            self.print_reg(R_RX_PAYLOAD,"Received",PAYLOAD_SIZE)    # Print out the received bytes
         else:
             print(".", end='')  # Print out dots to show we are still listening!
             sys.stdout.flush()  # the end='' only puts it in the buffer!
@@ -163,14 +161,14 @@ class NRF24L01P:
         """Sends x bytes of data"""
 
         # Reset Status registry for next transmission
-        bytes = [WRITE_REG|STATUS]  # first byte to send tells nRF tat STATUS register is to be Written to
-        bytes.append(RESET_STATUS)  # add the byte that will be written to thr nRF (in this case the Reset command)
-        self._spi_write(writing(bytes))    # execute the SPI command to send "bytes" to the nRF
+        bytes = [W_REGISTER|STATUS]         # First byte to send tells nRF tat STATUS register is to be Written to
+        bytes.append(RESET_STATUS)          # Add the byte that will be written to thr nRF (in this case the Reset command)
+        self._spi_write(writing(bytes))     # Execute the SPI command to send "bytes" to the nRF
 
         # Flush RX Buffer
-        self._spi_write(writing([FLUSH_TX]))   # This one is special because it doesn't need any more than one byte SPI-command.
-                                                # This is because the FLUSH_TX is located on the top level on the nRF, same as the "WRITE_REG"
-                                                # register or the "READ_REG". (See datasheet Tabel 8)
+        self._spi_write(writing([FLUSH_TX]))    # This one is special because it doesn't need any more than one byte SPI-command.
+                                                # This is because the FLUSH_TX is located on the top level on the nRF, same as the "W_REGISTER"
+                                                # register or the "R_REGISTER". (See datasheet Tabel 8)
         
         # Print out the STATUS registry before transmission
         self.print_reg(STATUS,"STATUS before",1)
@@ -189,21 +187,21 @@ class NRF24L01P:
         self.print_reg(RX_ADDR_P0,"To",5)
         
         # write bytes to send into tx buffer
-        bytes = [WR_TX_PLOAD]   # This one is simular to FLUSH_TX because it is located on the same top level in the nRF,
+        bytes = [W_TX_PAYLOAD]  # This one is simular to FLUSH_TX because it is located on the same top level in the nRF,
                                 # Even though we want to write to it, we cannot add the "WERITE_REG" command to it!
         bytes.extend(toSend)    # Because we now want to add a byte array to it, we use the "extend(" command instead of "append("
         self._spi_write(writing(bytes)) # Write payload to nRF with SPI
 
         try:
-            self.radio_pin.open()   # Open the "CE" GPIO pin for access
-            self.radio_pin.value=1  # Set the "CE" pin high (3,3V or 5V) to start transmission
-            time.sleep(0.001)       # Send for 0,5s to make sure it has time to send it all
-            self.radio_pin.value=0  # Ground the CE pin again, to stop transmission
-            self.radio_pin.close()  # Close the CE-pin
+            self.ce_pin.open()   # Open the "CE" GPIO pin for access
+            self.ce_pin.value=1  # Set the "CE" pin high (3,3V or 5V) to start transmission
+            time.sleep(0.001)    # Send for 0,5s to make sure it has time to send it all
+            self.ce_pin.value=0  # Ground the CE pin again, to stop transmission
+            self.ce_pin.close()  # Close the CE-pin
             
         except(KeyboardInterrupt, SystemExit):  # If ctrl+c breaks operation or system shutdown
             try:
-                self.radio_pin.close()  # First close the CE-pin, so that it can be opened again without error!
+                self.ce_pin.close()  # First close the CE-pin, so that it can be opened again without error!
                 print("\n\ngpio-pin closed!\n")
             except:
                 pass                   
@@ -219,11 +217,11 @@ class NRF24L01P:
     def set_address(self,Addr):
         """Function to change address on both RX and TX"""
 
-        bytes = [WRITE_REG|RX_ADDR_P0]
+        bytes = [W_REGISTER|RX_ADDR_P0]
         bytes.extend([Addr,Addr,Addr,Addr,Addr])
         self._spi_write(writing(bytes))
 
-        bytes = [WRITE_REG|TX_ADDR]
+        bytes = [W_REGISTER|TX_ADDR]
         bytes.extend([Addr,Addr,Addr,Addr,Addr])
         self._spi_write(writing(bytes))
         
@@ -232,52 +230,52 @@ class NRF24L01P:
         """Function that sets the basic settings in the nRF"""
 
         # Setup EN_AA
-        bytes = [WRITE_REG|EN_AA]
+        bytes = [W_REGISTER|EN_AA]
         bytes.append(SET_ACK)
         self._spi_write(writing(bytes))
 
         # Setup ACK RETRIES
-        bytes = [WRITE_REG|SETUP_RETR]
+        bytes = [W_REGISTER|SETUP_RETR]
         bytes.append(SET_ACK_RETR)
         self._spi_write(writing(bytes))
 
         # Setup Datapipe
-        bytes = [WRITE_REG|EN_RXADDR]
+        bytes = [W_REGISTER|EN_RXADDR]
         bytes.append(SET_DATAPIPE)
         self._spi_write(writing(bytes))
 
         # Setup Address width
-        bytes = [WRITE_REG|SETUP_AW]
+        bytes = [W_REGISTER|SETUP_AW]
         bytes.append(SET_ADR_WIDTH)
         self._spi_write(writing(bytes))
 
         # Setup Freq
-        bytes = [WRITE_REG|RF_CH]
+        bytes = [W_REGISTER|RF_CH]
         bytes.append(SET_FREQ)
         self._spi_write(writing(bytes))
 
         # Setup Data speed and power
-        bytes = [WRITE_REG|RF_SETUP]
+        bytes = [W_REGISTER|RF_SETUP]
         bytes.append(SET_SETUP)
         self._spi_write(writing(bytes))
 
         # Setup Receive Address
-        bytes = [WRITE_REG|RX_ADDR_P0]
+        bytes = [W_REGISTER|RX_ADDR_P0]
         bytes.extend(SET_RX_ADDR_P0)    # "extend" adds a list to a list, "append" adds one obect to a list
         self._spi_write(writing(bytes))
 
         # Setup Transmitter Address
-        bytes = [WRITE_REG|TX_ADDR]
+        bytes = [W_REGISTER|TX_ADDR]
         bytes.extend(SET_TX_ADDR)
         self._spi_write(writing(bytes))
 
         # Setup Payload size
-        bytes = [WRITE_REG|RX_PW_P0]
+        bytes = [W_REGISTER|RX_PW_P0]
         bytes.append(SET_PAYLOAD_S)
         self._spi_write(writing(bytes))
                 
         # Setup CONFIG registry
-        bytes = [WRITE_REG|CONFIG]
+        bytes = [W_REGISTER|CONFIG]
         bytes.append(SET_CONFIG)
         self._spi_write(writing(bytes))
         time.sleep(LONG_PAUSE)
@@ -298,8 +296,8 @@ class NRF24L01P:
 def send(data):
     """Function that can be called from other files that wants to send data"""
 
-    SendObj = NRF24L01P()
-    SendObj.write_data(data)
+    radio = NRF24L01P()
+    radio.write_data(data)
     print("Enter data to send (3 bytes): ")  # Retype the input-text (input is still on form main-loop) 
                                 
 if __name__ == "__main__":
@@ -307,43 +305,39 @@ if __name__ == "__main__":
 
     # Receiver or transmitter
     rxtx = input("rx or tx? \n")    
-    SendObj = NRF24L01P()
+    radio = NRF24L01P()
 
     # nRF transmitter
     if rxtx == "tx":    
         print('\nTransmitter')
         
         SET_CONFIG = 0x0E   # Transmitter
-        SendObj.setup()    # Setting up radio
+        radio.setup()       # Setting up radio
         
         TCP-Server.Run_func()    # Calls the "Run_func()" in a TCP-server (that in termes calls the "send(data)" function above with the data)
         while 1:
             package = input("Enter data to send (3 bytes): ")  # If not TCP-server is used, calls for input from user to bee sent
             print("")
-            #print(package)
             bytesToSend = [ord(str(x)) for x in package] # Convert input to decimal values 
-            #print(bytesToSend)
-            SendObj.write_data(bytesToSend)  # calls the write_data() function with the payload
+            radio.write_data(bytesToSend)                # Calls the write_data() function with the payload
 
     # nRF receiver
     else:   
         print('\nReceiver')
 
         SET_CONFIG = 0x0F   # Receiver
-        SendObj.setup()
+        radio.setup()
 
         # Start listening
         try:
-          SendObj.run()
+          radio.run()
 
         # If ctrl+c breaks operation or system shutdown
         except(KeyboardInterrupt, SystemExit):  
             try:
                 # First close the CE-pin, so that it can be opened again without error!             
-                self.radio_pin.close()  
+                self.ce_pin.close()  
                 print("\n\ngpio-pin closed!\n")
             except:
                 pass
             raise   # continue to break or shutdown!  
-
-
