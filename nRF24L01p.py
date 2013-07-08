@@ -74,7 +74,7 @@ class NRF24L01P:
         time.sleep(SMALL_PAUSE)     # Give the radio time to settle
         toReturn = self.nrf24.transaction(operation)    # Sends bytes in "operation" to nRF (first what register, than the bytes)
         return toReturn             # Return bytes received from nRF
-        
+
 
     def run(self):
         # Setup chip-enable pin
@@ -138,10 +138,8 @@ class NRF24L01P:
         bytes.append(RESET_STATUS)          # Add the byte that will be written to thr nRF (in this case the Reset command)
         self._spi_write(writing(bytes))     # Execute the SPI command to send "bytes" to the nRF
 
-        # Flush RX Buffer
-        self._spi_write(writing([FLUSH_TX]))    # This one is special because it doesn't need any more than one byte SPI-command.
-                                                # This is because the FLUSH_TX is located on the top level on the nRF, same as the "W_REGISTER"
-                                                # register or the "R_REGISTER". (See datasheet Tabel 8)
+        # Flush TX Buffer
+        self._spi_write(writing([FLUSH_TX]))    
         
         # Print out the STATUS registry before transmission
         self.print_reg(STATUS,"STATUS before",1)
@@ -149,19 +147,10 @@ class NRF24L01P:
         # Print out the transmitting bytes with quotations ("chr(34)"), Payload cannot be read from the nRF! 
         print("Transmitting...[{}{}{},{}{}{},{}{}{}]".format(chr(34), chr(toSend[0]),chr(34),chr(34), chr(toSend[1]), chr(34), chr(34),chr(toSend[2]),chr(34)))
 
-        # This checks if the payload is"900" or "901", 002, 003 or 004, and if so, changes the address on the nRF.
-        a = "".join([chr(x) for x in toSend])
-        if(a=="900" or a=="901"):
-            self.set_address(0x13)    #Calls function located further down
-        elif(a=="002" or a=="003" or a=="004"):#
-              self.set_address(0x14)
-
         # Print out the address one more time, to make sure it is sent to the right receiver. 
         self.print_reg(RX_ADDR_P0,"To",5)
         
-        # write bytes to send into tx buffer
-        bytes = [W_TX_PAYLOAD]  # This one is simular to FLUSH_TX because it is located on the same top level in the nRF,
-                                # Even though we want to write to it, we cannot add the "WERITE_REG" command to it!
+        bytes = [W_TX_PAYLOAD]  
         bytes.extend(toSend)    # Because we now want to add a byte array to it, we use the "extend(" command instead of "append("
         self._spi_write(writing(bytes)) # Write payload to nRF with SPI
 
