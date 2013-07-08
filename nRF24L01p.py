@@ -67,6 +67,15 @@ class NRF24L01P:
         self.nrf24 = SPIDevice(0, 0) 
         self.outfile = open("/home/pi/testit", 'a')
 
+
+    def _spi_write(self,operation):
+        """Do one SPI operation"""
+
+        time.sleep(SMALL_PAUSE)     # Give the radio time to settle
+        toReturn = self.nrf24.transaction(operation)    # Sends bytes in "operation" to nRF (first what register, than the bytes)
+        return toReturn             # Return bytes received from nRF
+        
+
     def run(self):
         # Setup chip-enable pin
         self.ce_pin = pi_header_1.pin(22, direction=Out) 
@@ -92,42 +101,6 @@ class NRF24L01P:
                         self.ce_pin.close()  # Close the CE-pin                        
                         radio.read_data()            
 
-
-    def _spi_write(self,operation):
-        """Do one SPI operation"""
-
-        time.sleep(SMALL_PAUSE)     # Give the radio time to settle
-        toReturn = self.nrf24.transaction(operation)    # Sends bytes in "operation" to nRF (first what register, than the bytes)
-        return toReturn             # Return bytes received from nRF
-
-    
-    def print_reg(self, Register, name, numbers):
-        """Function that grabs "numbers" of bytes from the registry "Register" in the nRF and writes them out in terminal as "name....[0xAA,0xBB,0xCC]" """
-
-        bytes = [R_REGISTER|Register]           # First byte in "bytes" will tell the nRF what register to read from 
-        for x in range(0, numbers):             # Add "numbers" amount of dummy-bytes to "bytes" to send to nRF
-            bytes.append(NOP)                   # For each dummy byte sent to nRF later, a return byte will be collected 
-        ret = self._spi_write(duplex(bytes))    # Do the SPI operations (returns a byte-array with the bytes collected)
-
-        Res = [hex(z)[2:] for z in ret[0]]      # Convert byte-array to string list
-
-        # Pad name to 15 characters
-        while len(name)<15: name = name + "."
-
-        # Print out the register and bytes like this: "STATUS.........[0x0E]"
-        print("{}".format(name), end='')        # First print the name, and stay on same line (end='')        
-
-        for x in range(1, numbers+1):           # Then print out every collected byte
-            if len(Res[x]) == 1:                # If byte started with "0" (ex. "0E") the "0" is gone from previous process => (len == 1)
-                Res[x]= "0" + Res[x]            # Read the "0" if thats the case
-            print("[0x{}]".format(Res[x].upper()), end='') # Print next byte after previous without new line
-            print("[0x{}]".format(Res[x].upper()), end='', file=self.outfile) # Print next byte after previous without new line
-
-        print("") 
-        print("<br />", file=self.outfile) 
-        self.outfile.flush()
-        return Res[1].upper()   # Returns the first byte (not the zeroth which is always STATUS)
-    
 
     def read_data(self):
         """Receive one or None messages from module"""
@@ -213,6 +186,34 @@ class NRF24L01P:
         if(a=="900" or a=="901" or a=="002" or a=="003" or a=="004"):      # If you changed address above, change it back to normal
             self.set_address(0x12)    # Change back address!
 
+    
+    def print_reg(self, Register, name, numbers):
+        """Function that grabs "numbers" of bytes from the registry "Register" in the nRF and writes them out in terminal as "name....[0xAA,0xBB,0xCC]" """
+
+        bytes = [R_REGISTER|Register]           # First byte in "bytes" will tell the nRF what register to read from 
+        for x in range(0, numbers):             # Add "numbers" amount of dummy-bytes to "bytes" to send to nRF
+            bytes.append(NOP)                   # For each dummy byte sent to nRF later, a return byte will be collected 
+        ret = self._spi_write(duplex(bytes))    # Do the SPI operations (returns a byte-array with the bytes collected)
+
+        Res = [hex(z)[2:] for z in ret[0]]      # Convert byte-array to string list
+
+        # Pad name to 15 characters
+        while len(name)<15: name = name + "."
+
+        # Print out the register and bytes like this: "STATUS.........[0x0E]"
+        print("{}".format(name), end='')        # First print the name, and stay on same line (end='')        
+
+        for x in range(1, numbers+1):           # Then print out every collected byte
+            if len(Res[x]) == 1:                # If byte started with "0" (ex. "0E") the "0" is gone from previous process => (len == 1)
+                Res[x]= "0" + Res[x]            # Read the "0" if thats the case
+            print("[0x{}]".format(Res[x].upper()), end='') # Print next byte after previous without new line
+            print("[0x{}]".format(Res[x].upper()), end='', file=self.outfile) # Print next byte after previous without new line
+
+        print("") 
+        print("<br />", file=self.outfile) 
+        self.outfile.flush()
+        return Res[1].upper()   # Returns the first byte (not the zeroth which is always STATUS)
+    
 
     def set_address(self,Addr):
         """Function to change address on both RX and TX"""
