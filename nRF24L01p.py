@@ -11,17 +11,17 @@ SMALL_PAUSE  = 0.0
 LONG_PAUSE   = 0.0
 
 # Define settings variables for nRF:
-SET_ACK        = 0x3f  #Auto ack on (EN_AA)
-SET_ACK_RETR   = 0x2F  #15 retries, 750us paus in between in auto ack (SETUP_RETR)
-SET_DATAPIPE   = 0x03  #Datapipe 0 is used (EN_RXADDR)
-SET_ADR_WIDTH  = 0x03  #5 byte address (SETUP_AW)
-SET_FREQ       = 0x5a  #2,401GHz (RF_CH)
-SET_SETUP      = 0x07  #1Mbps, -0dB, (250kbps = 0x27) (RF_SETUP)
+SET_ACK        = 0x3f  # Auto ack on (EN_AA)
+SET_ACK_RETR   = 0x2F  # 15 retries, 750us paus in between in auto ack (SETUP_RETR)
+SET_DATAPIPE   = 0x3F  # Enable all datapipes (EN_RXADDR)
+SET_ADR_WIDTH  = 0x03  # 5 byte address (SETUP_AW)
+SET_FREQ       = 0x5a  # 2,401GHz (RF_CH)
+SET_SETUP      = 0x07  # 1Mbps, -0dB, (250kbps = 0x27) (RF_SETUP)
 ADDRESS        = 0xe7
-SET_RX_ADDR_P0 = [ADDRESS,ADDRESS,ADDRESS,ADDRESS,ADDRESS] #Receiver address( RX_ADDR_P0)
-SET_TX_ADDR    = [ADDRESS,ADDRESS,ADDRESS,ADDRESS,ADDRESS] #Transmitter address (TX_ADDR)
-SET_PAYLOAD_S  = 0x20  #3byte payload size (32byte = 0x20)(RX_PW_P0)
-SET_CONFIG     = 0x0F  #1=mask_MAX_RT (IRQ-vector), E=transmitter, F= Receiver (CONFIG)
+SET_RX_ADDR_P0 = [ADDRESS,ADDRESS,ADDRESS,ADDRESS,ADDRESS] # Receiver address( RX_ADDR_P0)
+SET_TX_ADDR    = [ADDRESS,ADDRESS,ADDRESS,ADDRESS,ADDRESS] # Transmitter address (TX_ADDR)
+SET_PAYLOAD_S  = 0x20  # 3byte payload size (32byte = 0x20)(RX_PW_P0)
+SET_CONFIG     = 0x0F  # 1=mask_MAX_RT (IRQ-vector), E=transmitter, F= Receiver (CONFIG)
 
 # nRF registers:
 CONFIG      = 0x00
@@ -124,25 +124,33 @@ class NRF24L01P:
         self._spi_write(writing([FLUSH_RX]))    
         self._spi_write(writing([FLUSH_TX]))    
 
-    # def run(self):
+    def write(self,length):
+        # Begin write
+        self.start_write(length)
 
-    #     # Configure epoll for interrupt-handler
-    #     epoll = select.epoll() 
+        # Power down
 
-    #     with self.int_pin:
+        # Flush buffer
+        self._spi_write(writing([FLUSH_TX]))    
 
-    #         epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
+    def start_write(self,length):
+        """ Set the radio to transmit outgoing data. """
 
-    #         while True: 
-    #             radio.start_listening()
-                                
-    #             events = epoll.poll() 
-    #             for fileno, event in events: 
-    #                 if fileno == self.int_pin.fileno(): 
-    #                     # self.CE(LOW)
-    #                     # radio.read_data()            
-    #                     radio.read_payload(32)
+        # Power-up transmitter
+        self.write_register(CONFIG,0x0E)
 
+        # toSend = bytearray(b"11111110000000011111111100000000")
+        toSend = bytearray.fromhex("ab cd ef ab cd ef ab cd ef ab cd ef 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
+
+        # Write payload
+        bytes = [W_TX_PAYLOAD]  
+        bytes.extend(toSend)    # Because we now want to add a byte array to it, we use the "extend(" command instead of "append("
+        self._spi_write(writing(bytes)) # Write payload to nRF with SPI        
+
+        # Begin transmission
+        self.CE(HIGH)
+        time.sleep(0.001)
+        self.CE(LOW)
 
     def read_payload(self, length):
 
@@ -151,10 +159,15 @@ class NRF24L01P:
         for x in range(0, length):              # Add "length" amount of dummy-bytes to "bytes" to send to nRF
             bytes.append(NOP)                   # For each dummy byte sent to nRF later, a return byte will be collected 
         ret = self._spi_write(duplex(bytes))    # Do the SPI operations (returns a byte-array with the bytes collected)
-        ret = ''.join([hex(z)[2:] for z in ret[0]])
-        print("GOT: 0x" + str(ret))
+
+        # The first-byte in the array is the STATUS
+        pipe = (ret[0][0] & 0x0F) >> 1
+
+        # Convert the bytearray into hex
+        ret = [hex(z)[2:] for z in ret[0]]
 
         # was this the last of the data available?
+        return (pipe, ret)
 
 
     def read_data(self):
@@ -329,6 +342,27 @@ class NRF24L01P:
         bytes = [W_REGISTER|RX_PW_P0]
         bytes.append(SET_PAYLOAD_S)
         self._spi_write(writing(bytes))
+
+        bytes = [W_REGISTER|RX_PW_P1]
+        bytes.append(SET_PAYLOAD_S)
+        self._spi_write(writing(bytes))
+
+        bytes = [W_REGISTER|RX_PW_P2]
+        bytes.append(SET_PAYLOAD_S)
+        self._spi_write(writing(bytes))
+
+        bytes = [W_REGISTER|RX_PW_P3]
+        bytes.append(SET_PAYLOAD_S)
+        self._spi_write(writing(bytes))
+
+        bytes = [W_REGISTER|RX_PW_P4]
+        bytes.append(SET_PAYLOAD_S)
+        self._spi_write(writing(bytes))
+
+        bytes = [W_REGISTER|RX_PW_P5]
+        bytes.append(SET_PAYLOAD_S)
+        self._spi_write(writing(bytes))
+
                 
         # Setup CONFIG registry
         bytes = [W_REGISTER|CONFIG]
