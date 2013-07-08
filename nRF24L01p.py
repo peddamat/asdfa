@@ -75,9 +75,10 @@ class NRF24L01P:
 
         # Setup chip-enable pin
         self.ce_pin = pi_header_1.pin(22, direction=Out) 
+        self.ce_pin.open()
 
         # Setup interrupt pin
-        self.int_pin = pi_header_1.pin(18, direction=In, interrupt=Falling)
+        # self.int_pin = pi_header_1.pin(18, direction=In, interrupt=Falling)
 
 
     def _spi_write(self,operation):
@@ -107,38 +108,40 @@ class NRF24L01P:
         self._spi_write(writing([FLUSH_RX]))    
         self._spi_write(writing([FLUSH_TX]))    
 
-        radio.CE(HIGH)
+        self.CE(HIGH)
 
         # Give the radio time to settle
         time.sleep(LONG_PAUSE)  
 
+    def shutdown(self):
+        self.ce_pin.close()
 
     def stop_listening(self):
 
-        radio.CE(LOW)
+        self.CE(LOW)
 
         # Flush buffers
         self._spi_write(writing([FLUSH_RX]))    
         self._spi_write(writing([FLUSH_TX]))    
 
-    def run(self):
+    # def run(self):
 
-        # Configure epoll for interrupt-handler
-        epoll = select.epoll() 
+    #     # Configure epoll for interrupt-handler
+    #     epoll = select.epoll() 
 
-        with self.ce_pin,self.int_pin:
+    #     with self.int_pin:
 
-            epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
+    #         epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
 
-            while True: 
-                radio.start_listening()
+    #         while True: 
+    #             radio.start_listening()
                                 
-                events = epoll.poll() 
-                for fileno, event in events: 
-                    if fileno == self.int_pin.fileno(): 
-                        # radio.CE(LOW)
-                        # radio.read_data()            
-                        radio.read_payload(32)
+    #             events = epoll.poll() 
+    #             for fileno, event in events: 
+    #                 if fileno == self.int_pin.fileno(): 
+    #                     # self.CE(LOW)
+    #                     # radio.read_data()            
+    #                     radio.read_payload(32)
 
 
     def read_payload(self, length):
@@ -363,46 +366,46 @@ def send(data):
     radio.write_data(data)
     print("Enter data to send (3 bytes): ")  # Retype the input-text (input is still on form main-loop) 
                                 
-if __name__ == "__main__":
-    """ The magic starts here!
+# if __name__ == "__main__":
+#     """ The magic starts here!
 
-    """
+#     """
 
-    # Receiver or transmitter
-    rxtx = input("rx or tx? \n")    
-    radio = NRF24L01P()
+#     # Receiver or transmitter
+#     rxtx = input("rx or tx? \n")    
+#     radio = NRF24L01P()
 
-    # nRF transmitter
-    if rxtx == "tx":    
-        print('\nTransmitter')
+#     # nRF transmitter
+#     if rxtx == "tx":    
+#         print('\nTransmitter')
         
-        SET_CONFIG = 0x0E   # Transmitter
-        radio.setup()       # Setting up radio
+#         SET_CONFIG = 0x0E   # Transmitter
+#         radio.setup()       # Setting up radio
         
-        TCP-Server.Run_func()    # Calls the "Run_func()" in a TCP-server (that in termes calls the "send(data)" function above with the data)
-        while 1:
-            package = input("Enter data to send (3 bytes): ")  # If not TCP-server is used, calls for input from user to bee sent
-            print("")
-            bytesToSend = [ord(str(x)) for x in package] # Convert input to decimal values 
-            radio.write_data(bytesToSend)                # Calls the write_data() function with the payload
+#         TCP-Server.Run_func()    # Calls the "Run_func()" in a TCP-server (that in termes calls the "send(data)" function above with the data)
+#         while 1:
+#             package = input("Enter data to send (3 bytes): ")  # If not TCP-server is used, calls for input from user to bee sent
+#             print("")
+#             bytesToSend = [ord(str(x)) for x in package] # Convert input to decimal values 
+#             radio.write_data(bytesToSend)                # Calls the write_data() function with the payload
 
-    # nRF receiver
-    else:   
-        print('\nReceiver')
+#     # nRF receiver
+#     else:   
+#         print('\nReceiver')
 
-        SET_CONFIG = 0x0F   # Receiver
-        radio.setup()
+#         SET_CONFIG = 0x0F   # Receiver
+#         radio.setup()
 
-        # Start listening
-        try:
-          radio.run()
+#         # Start listening
+#         try:
+#           radio.run()
 
-        # If ctrl+c breaks operation or system shutdown
-        except(KeyboardInterrupt, SystemExit):  
-            try:
-                # First close the CE-pin, so that it can be opened again without error!             
-                self.ce_pin.close()  
-                print("\n\ngpio-pin closed!\n")
-            except:
-                pass
-            raise   # continue to break or shutdown!  
+#         # If ctrl+c breaks operation or system shutdown
+#         except(KeyboardInterrupt, SystemExit):  
+#             try:
+#                 # First close the CE-pin, so that it can be opened again without error!             
+#                 self.ce_pin.close()  
+#                 print("\n\ngpio-pin closed!\n")
+#             except:
+#                 pass
+#             raise   # continue to break or shutdown!  
