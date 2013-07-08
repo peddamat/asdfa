@@ -60,50 +60,104 @@ FLUSH_TX    = 0xE1
 FLUSH_RX    = 0xE2
 NOP         = 0xFF
 
+LOW         = 0
+HIGH        = 1
 
 class NRF24L01P:
+    """ A module for interacting with a nRF24L01+ module.
 
+    """
     def __init__(self):
-        self.nrf24 = SPIDevice(0, 0) 
         self.outfile = open("/home/pi/testit", 'a')
 
+        # Grab a reference to the SPI device
+        self.nrf24   = SPIDevice(0, 0) 
 
-    def _spi_write(self,operation):
-        """Do one SPI operation"""
-
-        time.sleep(SMALL_PAUSE)     # Give the radio time to settle
-        toReturn = self.nrf24.transaction(operation)    # Sends bytes in "operation" to nRF (first what register, than the bytes)
-        return toReturn             # Return bytes received from nRF
-
-
-    def run(self):
         # Setup chip-enable pin
         self.ce_pin = pi_header_1.pin(22, direction=Out) 
 
         # Setup interrupt pin
         self.int_pin = pi_header_1.pin(18, direction=In, interrupt=Falling)
 
+
+    def _spi_write(self,operation):
+        """ Do one SPI operation
+
+        """
+        time.sleep(SMALL_PAUSE)     # Give the radio time to settle
+        toReturn = self.nrf24.transaction(operation)    # Sends bytes in "operation" to nRF (first what register, than the bytes)
+        return toReturn             # Return bytes received from nRF
+
+
+    def CE(self,val):
+        """ Set chip-enable pin."""
+        self.ce_pin.value=val
+
+
+    def start_listening(self):
+        """ Set the radio to receive incoming data. """
+
+        # Power-up radio and set to RX
+        self.write_register(CONFIG,0x0F)
+
+        # Clear status register
+        self.write_register(STATUS,RESET_STATUS)
+
+        # Flush buffers
+        self._spi_write(writing([FLUSH_RX]))    
+        self._spi_write(writing([FLUSH_TX]))    
+
+        radio.CE(HIGH)
+
+        # Give the radio time to settle
+        time.sleep(LONG_PAUSE)  
+
+
+    def stop_listening(self):
+
+        radio.CE(LOW)
+
+        # Flush buffers
+        self._spi_write(writing([FLUSH_RX]))    
+        self._spi_write(writing([FLUSH_TX]))    
+
+    def run(self):
+
         # Configure epoll for interrupt-handler
         epoll = select.epoll() 
 
-        with self.int_pin:
+        with self.ce_pin,self.int_pin:
+
             epoll.register(self.int_pin, select.EPOLLIN | select.EPOLLET) 
 
             while True: 
-                self.ce_pin.open()   # Open the "CE" GPIO pin for access
-                self.ce_pin.value=1  # Set the "CE" pin high (3,3V or 5V) to start listening for data
-                time.sleep(LONG_PAUSE)  # Give the radio time to settle
+                radio.start_listening()
                                 
                 events = epoll.poll() 
                 for fileno, event in events: 
                     if fileno == self.int_pin.fileno(): 
-                        self.ce_pin.value=0  # Ground the "CE" pin again, to stop listening
-                        self.ce_pin.close()  # Close the CE-pin                        
-                        radio.read_data()            
+                        # radio.CE(LOW)
+                        # radio.read_data()            
+                        radio.read_payload(32)
+
+
+    def read_payload(self, length):
+
+        # Fetch the payload
+        bytes = [R_REGISTER|R_RX_PAYLOAD]       # First byte in "bytes" will tell the nRF what register to read from 
+        for x in range(0, length):              # Add "length" amount of dummy-bytes to "bytes" to send to nRF
+            bytes.append(NOP)                   # For each dummy byte sent to nRF later, a return byte will be collected 
+        ret = self._spi_write(duplex(bytes))    # Do the SPI operations (returns a byte-array with the bytes collected)
+        ret = ''.join([hex(z)[2:] for z in ret[0]])
+        print("GOT: 0x" + str(ret))
+
+        # was this the last of the data available?
 
 
     def read_data(self):
-        """Receive one or None messages from module"""
+        """ Receive one or None messages from module
+
+        """
 
         # Reset Status registry
         bytes = [W_REGISTER|STATUS]         # First byte to send tells nRF tat STATUS register is to be Written to
@@ -131,7 +185,9 @@ class NRF24L01P:
 
 
     def write_data(self,toSend):
-        """Sends x bytes of data"""
+        """ Sends x bytes of data
+
+        """
 
         # Reset Status registry for next transmission
         bytes = [W_REGISTER|STATUS]         # First byte to send tells nRF tat STATUS register is to be Written to
@@ -177,7 +233,10 @@ class NRF24L01P:
 
     
     def print_reg(self, Register, name, numbers):
-        """Function that grabs "numbers" of bytes from the registry "Register" in the nRF and writes them out in terminal as "name....[0xAA,0xBB,0xCC]" """
+        """ Function that grabs "numbers" of bytes from the registry "Register" 
+        in the nRF and writes them out in terminal as "name....[0xAA,0xBB,0xCC]"
+
+        """
 
         bytes = [R_REGISTER|Register]           # First byte in "bytes" will tell the nRF what register to read from 
         for x in range(0, numbers):             # Add "numbers" amount of dummy-bytes to "bytes" to send to nRF
@@ -205,7 +264,9 @@ class NRF24L01P:
     
 
     def set_address(self,Addr):
-        """Function to change address on both RX and TX"""
+        """ Function to change address on both RX and TX
+
+        """
 
         bytes = [W_REGISTER|RX_ADDR_P0]
         bytes.extend([Addr,Addr,Addr,Addr,Addr])
@@ -217,7 +278,9 @@ class NRF24L01P:
         
 
     def setup(self):
-        """Function that sets the basic settings in the nRF"""
+        """ Function that sets the basic settings in the nRF 
+
+        """
 
         # Setup EN_AA
         bytes = [W_REGISTER|EN_AA]
@@ -268,6 +331,7 @@ class NRF24L01P:
         bytes = [W_REGISTER|CONFIG]
         bytes.append(SET_CONFIG)
         self._spi_write(writing(bytes))
+
         time.sleep(LONG_PAUSE)
 
         # Collect print out the registers from the nRF to to make sure thay are allright
@@ -283,15 +347,26 @@ class NRF24L01P:
         self.print_reg(RX_PW_P0,"RX_PW_P0",1)
         self.print_reg(CONFIG,"CONFIG",1)
 
+
+    def write_register(self,register,val):
+        bytes = [W_REGISTER|register]
+        bytes.append(val)
+        self._spi_write(writing(bytes))        
+
+
 def send(data):
-    """Function that can be called from other files that wants to send data"""
+    """ Function that can be called from other files that wants to send data
+
+    """
 
     radio = NRF24L01P()
     radio.write_data(data)
     print("Enter data to send (3 bytes): ")  # Retype the input-text (input is still on form main-loop) 
                                 
 if __name__ == "__main__":
-    """The magic starts here!"""
+    """ The magic starts here!
+
+    """
 
     # Receiver or transmitter
     rxtx = input("rx or tx? \n")    
