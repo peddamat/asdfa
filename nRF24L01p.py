@@ -140,7 +140,7 @@ class NRF24L01P:
         self.write_register(CONFIG,0x0E)
 
         # toSend = bytearray(b"11111110000000011111111100000000")
-        toSend = bytearray.fromhex("ab cd ef ab cd ef ab cd ef ab cd ef 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
+        toSend = bytearray.fromhex("c2 c2 c2 c2 c2 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00")
 
         # Write payload
         bytes = [W_TX_PAYLOAD]  
@@ -163,11 +163,13 @@ class NRF24L01P:
         # The first-byte in the array is the STATUS
         pipe = (ret[0][0] & 0x0F) >> 1
 
-        # Convert the bytearray into hex
-        ret = [hex(z)[2:] for z in ret[0]]
+        # # Convert the bytearray into hex
+        # ret = [hex(z)[2:] for z in ret[0]]
 
         # was this the last of the data available?
-        return (pipe, ret)
+
+
+        return (pipe, ret[0][1:])
 
 
     def read_data(self):

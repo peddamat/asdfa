@@ -36,14 +36,19 @@ if __name__ == "__main__":
 
                         # Handle incoming data
                         (pipe, payload) = radio.read_payload(32)
-                        # payload = ''.join([hex(z)[2:] for z in payload[0]])
+
+                        # Handle HELO requests on pipe 0
+                        if pipe == 0:
+                            radio.stop_listening()
+                            radio.write(10)
+
+                        # Convert the bytearray into hex
+                        payload = [hex(z)[2:] for z in payload]
+
+
+
                         print("Pipe: %i" % pipe)
                         print("GOT: 0x" + str(payload))
-
-                        radio.stop_listening()
-
-                        radio.write(10)
-                        
 
                 # Handle outgoing data
 
