@@ -5,7 +5,14 @@ from quick2wire.gpio import In,Out,pi_header_1,Falling
 import time
 import select
 from nRF24L01p import *
+from struct import *
 
+# Graphite
+import socket
+import time
+
+CARBON_SERVER = '127.0.0.1'
+CARBON_PORT = 2003
 
 if __name__ == "__main__":
 
@@ -42,13 +49,22 @@ if __name__ == "__main__":
                             radio.stop_listening()
                             radio.write(10)
 
+                        mode, temperature = struct.unpack_from('<cf', payload)
+
+                        print("Temperature: " + str(temperature))
+
+                        message = 'local.sensie.1.temperature %f %d\n' % (temperature, int(time.time()))
+
+                        #print('sending message:\n%s' % message)
+                        sock = socket.socket()
+                        sock.connect((CARBON_SERVER, CARBON_PORT))
+                        sock.sendall(bytes(message,'UTF-8'))
+                        sock.close()
+
                         # Convert the bytearray into hex
-                        payload = [hex(z)[2:] for z in payload]
-
-
-
-                        print("Pipe: %i" % pipe)
-                        print("GOT: 0x" + str(payload))
+                        #payload = [hex(z)[2:] for z in payload]
+                        #print("Pipe: %i" % pipe)
+                        #print("GOT: 0x" + str(payload))
 
                 # Handle outgoing data
 
